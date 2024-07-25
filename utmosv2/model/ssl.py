@@ -7,13 +7,16 @@ from transformers import AutoFeatureExtractor, AutoModel
 
 from utmosv2.dataset._utils import get_dataset_num
 
+# `transformers` library's AutoClass name
+SSL_NAME = "facebook/wav2vec2-base"
+
 
 class _SSLEncoder(nn.Module):
-    def __init__(self, sr: int, model_name: str, freeze: bool):
+    def __init__(self, sr: int, freeze: bool):
         super().__init__()
         self.sr = sr
-        self.processor = AutoFeatureExtractor.from_pretrained(model_name)
-        self.model = AutoModel.from_pretrained(model_name)
+        self.processor = AutoFeatureExtractor.from_pretrained(SSL_NAME)
+        self.model = AutoModel.from_pretrained(SSL_NAME)
         if freeze:
             for param in self.model.parameters():
                 param.requires_grad = False
@@ -32,10 +35,14 @@ class SSLExtModel(nn.Module):
     def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
+
+        # NOTE: Same SSL model name is used for all predefined configs
+        assert cfg.model.ssl.name == SSL_NAME
+
         self.encoder = _SSLEncoder(
-            cfg.sr, cfg.model.ssl.name, cfg.model.ssl.freeze
+            cfg.sr, cfg.model.ssl.freeze
         )
-        hidden_num, in_features = get_ssl_output_shape(cfg.model.ssl.name)
+        hidden_num, in_features = 13, 768
         self.weights = nn.Parameter(F.softmax(torch.randn(hidden_num), dim=0))
         if cfg.model.ssl.attn:
             self.attn = nn.ModuleList(
@@ -66,26 +73,3 @@ class SSLExtModel(nn.Module):
             x = torch.cat([torch.mean(x, dim=1), torch.max(x, dim=1)[0]], dim=1)
         x = self.fc(torch.cat([x, d], dim=1))
         return x
-
-
-def get_ssl_output_shape(name: str) -> tuple[int, int]:
-    if name in [
-        "facebook/w2v-bert-2.0",
-        "facebook/wav2vec2-large",
-        "facebook/wav2vec2-large-robust",
-        "facebook/wav2vec2-large-960h",
-        "microsoft/wavlm-large",
-        "facebook/wav2vec2-large-xlsr-53",
-    ]:
-        return 25, 1024
-    elif name in [
-        "facebook/hubert-base-ls960",
-        "facebook/data2vec-audio-base-960h",
-        "microsoft/wavlm-base",
-        "microsoft/wavlm-base-plus",
-        "microsoft/wavlm-base-plus-sv",
-        "facebook/wav2vec2-base",
-    ]:
-        return 13, 768
-    else:
-        raise NotImplementedError
