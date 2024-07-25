@@ -29,13 +29,13 @@ class _SSLEncoder(nn.Module):
 
 
 class SSLExtModel(nn.Module):
-    def __init__(self, cfg, name: str | None = None):
+    def __init__(self, cfg):
         super().__init__()
         self.cfg = cfg
         self.encoder = _SSLEncoder(
-            cfg.sr, name or cfg.model.ssl.name, cfg.model.ssl.freeze
+            cfg.sr, cfg.model.ssl.name, cfg.model.ssl.freeze
         )
-        hidden_num, in_features = get_ssl_output_shape(name or cfg.model.ssl.name)
+        hidden_num, in_features = get_ssl_output_shape(cfg.model.ssl.name)
         self.weights = nn.Parameter(F.softmax(torch.randn(hidden_num), dim=0))
         if cfg.model.ssl.attn:
             self.attn = nn.ModuleList(
