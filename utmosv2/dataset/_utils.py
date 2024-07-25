@@ -5,31 +5,43 @@ import numpy as np
 
 
 def load_audio(cfg, file: str) -> np.ndarray:
+    """Load a resampled mono waveform."""
     if file.suffix == ".wav":
-        y, sr = librosa.load(file, sr=None)
-        y = librosa.resample(y, orig_sr=sr, target_sr=cfg.sr)
+        wave, sr = librosa.load(file, sr=None)
+        wave = librosa.resample(wave, orig_sr=sr, target_sr=cfg.sr)
     else:
-        y = np.load(file)
-    return y
+        wave = np.load(file)
+    return wave
 
 
-def extend_audio(cfg, y: np.ndarray, length: int, type: str) -> np.ndarray:
-    if y.shape[0] > length:
-        return y
+def extend_audio(cfg, wave: np.ndarray, length: int, type: str) -> np.ndarray:
+    """
+    Args:
+        wave   :: (T,) - waveform
+        length         - Target waveform length
+        type           - How to extend
+    Returns:
+               :: (T,) - waveform which is longer than `length`
+    """
+    if wave.shape[0] > length:
+        return wave
     elif type == "tile":
-        n = length // y.shape[0] + 1
-        y = np.tile(y, n)
-        return y
+        n = length // wave.shape[0] + 1
+        wave = np.tile(wave, n)
+        return wave
     else:
         raise NotImplementedError
 
 
-def select_random_start(y: np.ndarray, length: int) -> np.ndarray:
-    start = np.random.randint(0, y.shape[0] - length)
-    return y[start : start + length]
+def select_random_start(wave: np.ndarray, length: int) -> np.ndarray:
+    """Clip waveform into fixed length with random start."""
+    start = np.random.randint(0, wave.shape[0] - length)
+    return wave[start : start + length]
 
 
-def get_dataset_map(cfg):
+def get_dataset_map(cfg) -> dict[str, int]:
+    """Acquire the dataset ID dictionary."""
+
     if cfg.data_config:
         with open(cfg.data_config, "r") as f:
             datasets = json.load(f)
@@ -49,5 +61,6 @@ def get_dataset_map(cfg):
         }
 
 
-def get_dataset_num(cfg):
+def get_dataset_num(cfg) -> int:
+    """Acquire the number of registered datasets."""
     return len(get_dataset_map(cfg))

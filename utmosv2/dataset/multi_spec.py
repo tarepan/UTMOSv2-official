@@ -22,19 +22,25 @@ class MultiSpecDataset(torch.utils.data.Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
+        """
+        Returns:
+            spec:   Tensor -
+            target: Tensor -
+        """
+
         row = self.data.iloc[idx]
         file = row["file_path"]
-        y = load_audio(self.cfg, file)
+        wave = load_audio(self.cfg, file)
         specs = []
         length = int(self.cfg.dataset.spec_frames.frame_sec * self.cfg.sr)
-        y = extend_audio(self.cfg, y, length, type=self.cfg.dataset.spec_frames.extend)
+        wave = extend_audio(self.cfg, wave, length, type=self.cfg.dataset.spec_frames.extend)
         for _ in range(self.cfg.dataset.spec_frames.num_frames):
-            y1 = select_random_start(y, length)
+            wave1 = select_random_start(wave, length)
             for spec_cfg in self.cfg.dataset.specs:
-                spec = _make_spctrogram(self.cfg, spec_cfg, y1)
+                spec = _make_spctrogram(self.cfg, spec_cfg, wave1)
                 if self.cfg.dataset.spec_frames.mixup_inner:
-                    y2 = select_random_start(y, length)
-                    spec2 = _make_spctrogram(self.cfg, spec_cfg, y2)
+                    wave2 = select_random_start(wave, length)
+                    spec2 = _make_spctrogram(self.cfg, spec_cfg, wave2)
                     lmd = np.random.beta(
                         self.cfg.dataset.spec_frames.mixup_alpha,
                         self.cfg.dataset.spec_frames.mixup_alpha,
@@ -60,20 +66,28 @@ class MultiSpecExtDataset(MultiSpecDataset):
         self.dataset_map = get_dataset_map(cfg)
 
     def __getitem__(self, idx):
+        """
+        Returns:
+            spec:   Tensor        -
+            ds_idx: Tensor (D=d,) - Dataset ID onehot vector
+            target: Tensor        -
+        """
+
         spec, target = super().__getitem__(idx)
 
-        d = np.zeros(len(self.dataset_map))
-        d[self.dataset_map[self.data.iloc[idx]["dataset"]]] = 1
-        d = torch.tensor(d, dtype=torch.float32)
+        # Dataset ID onehot vector
+        ds_idx = np.zeros(len(self.dataset_map))
+        ds_idx[self.dataset_map[self.data.iloc[idx]["dataset"]]] = 1
+        ds_idx = torch.tensor(ds_idx, dtype=torch.float32)
 
-        return spec, d, target
+        return spec, ds_idx, target
 
 
-def _make_spctrogram(cfg, spec_cfg, y: np.ndarray) -> np.ndarray:
+def _make_spctrogram(cfg, spec_cfg, wave: np.ndarray) -> np.ndarray:
     if spec_cfg.mode == "melspec":
-        return _make_melspec(cfg, spec_cfg, y)
+        return _make_melspec(cfg, spec_cfg, wave)
     elif spec_cfg.mode == "stft":
-        return _make_stft(cfg, spec_cfg, y)
+        return _make_stft(cfg, spec_cfg, wave)
     else:
         raise NotImplementedError
 

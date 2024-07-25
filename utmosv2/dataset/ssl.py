@@ -1,3 +1,5 @@
+"""Dataset for SSL wave encoders"""
+
 import numpy as np
 import pandas as pd
 import torch
@@ -20,17 +22,22 @@ class SSLDataset(torch.utils.data.Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
+        """
+        Returns:
+            wave:   NDArray (T=t,) - Fixed-length resampled waveform
+            target: Tensor         -
+        """
         row = self.data.iloc[idx]
         file = row["file_path"]
-        y = load_audio(self.cfg, file)
+        wave = load_audio(self.cfg, file)
         length = int(self.cfg.dataset.ssl.duration * self.cfg.sr)
-        y = extend_audio(self.cfg, y, length, type="tile")
-        y = select_random_start(y, length)
+        wave = extend_audio(self.cfg, wave, length, type="tile")
+        wave = select_random_start(wave, length)
 
         target = row["mos"]
         target = torch.tensor(target, dtype=torch.float32)
 
-        return y, target
+        return wave, target
 
 
 class SSLExtDataset(SSLDataset):
@@ -39,10 +46,18 @@ class SSLExtDataset(SSLDataset):
         self.dataset_map = get_dataset_map(cfg)
 
     def __getitem__(self, idx):
-        y, target = super().__getitem__(idx)
+        """
+        Returns:
+            wave:   NDArray (T=t,) - Fixed-length resampled waveform
+            ds_idx: Tensor  (D=d,) - Dataset ID onehot vector
+            target: Tensor         -
+        """
 
-        d = np.zeros(len(self.dataset_map))
-        d[self.dataset_map[self.data.iloc[idx]["dataset"]]] = 1
-        d = torch.tensor(d, dtype=torch.float32)
+        wave, target = super().__getitem__(idx)
 
-        return y, d, target
+        # Dataset ID onehot vector
+        ds_idx = np.zeros(len(self.dataset_map))
+        ds_idx[self.dataset_map[self.data.iloc[idx]["dataset"]]] = 1
+        ds_idx = torch.tensor(ds_idx, dtype=torch.float32)
+
+        return wave, ds_idx, target

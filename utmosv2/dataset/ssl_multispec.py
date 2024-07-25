@@ -14,7 +14,15 @@ class SSLLMultiSpecExtDataset(torch.utils.data.Dataset):
         return len(self.data)
 
     def __getitem__(self, idx):
-        x1, d, target = self.ssl[idx]
-        x2, _ = self.multi_spec[idx]
+        """
+        Returns:
+            wave:   NDArray (T=t,) - Fixed-length resampled waveform
+            spec:   Tensor         -
+            ds_idx: Tensor  (D=d,) - Dataset ID onehot vector
+            target: Tensor         -
+        """
 
-        return x1, x2, d, target
+        wave, ds_idx, target = self.ssl[idx]
+        spec, _ = self.multi_spec[idx]
+
+        return wave, spec, ds_idx, target

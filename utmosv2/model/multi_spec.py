@@ -1,3 +1,5 @@
+"""Dataset for spec encoders"""
+
 import timm
 import torch
 import torch.nn as nn
@@ -77,7 +79,13 @@ class MultiSpecExtModel(nn.Module):
         self.attn = nn.MultiheadAttention(embed_dim=self.backbones[0].num_features * 2, num_heads=8, dropout=0.2, batch_first=True)
         self.fc = nn.Linear(self.backbones[0].num_features * 2 * 2 + get_dataset_num(cfg), 1)
 
-    def forward(self, x, d):
+    def forward(self, x, ds_idc):
+        """
+        Args:
+            x                - spec
+            ds_idc :: (B, D) - Dataset ID onehot vectors
+        """
+
         x = [
             x[:, i, :, :, :].squeeze(1)
             for i in range(self.cfg.dataset.spec_frames.num_frames * self.n_backbones)
@@ -92,5 +100,5 @@ class MultiSpecExtModel(nn.Module):
         xt = torch.permute(x, (0, 2, 1))
         y, _ = self.attn(xt, xt, xt)
         x = torch.cat([torch.mean(y, dim=1), torch.max(x, dim=2).values], dim=1)
-        x = self.fc(torch.cat([x, d], dim=1))
+        x = self.fc(torch.cat([x, ds_idc], dim=1))
         return x
