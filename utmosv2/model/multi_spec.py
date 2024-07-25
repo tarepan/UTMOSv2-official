@@ -9,75 +9,37 @@ from utmosv2.dataset._utils import get_dataset_num
 class MultiSpecModelV2(nn.Module):
     def __init__(self, cfg):
         super().__init__()
+
         self.cfg = cfg
+        self.n_backbones = len(cfg.dataset.specs)
 
         assert cfg.model.multi_spec.backbone == "tf_efficientnetv2_s.in21k_ft_in1k"
         assert cfg.model.multi_spec.atten == True
         assert cfg.model.multi_spec.pool_type == "catavgmax"
         assert cfg.model.multi_spec.num_classes == 1
 
-        self.backbones = nn.ModuleList(
-            [
-                timm.create_model(
-                    "tf_efficientnetv2_s.in21k_ft_in1k",
-                    pretrained=True,
-                    num_classes=0,
-                )
-                for _ in range(len(cfg.dataset.specs))
-            ]
-        )
+        # EfficientNet-v2: https://huggingface.co/timm/tf_efficientnetv2_s.in21k_ft_in1k
+        self.backbones = nn.ModuleList([
+            timm.create_model("tf_efficientnetv2_s.in21k_ft_in1k", pretrained=True, num_classes=0)
+            for _ in range(self.n_backbones)
+        ])
         for backbone in self.backbones:
             backbone.global_pool = nn.Identity()
 
-        self.weights = nn.Parameter(
-            F.softmax(torch.randn(len(cfg.dataset.specs)), dim=0)
-        )
-
-        self.pooling = timm.layers.SelectAdaptivePool2d(
-            output_size=(None, 1),
-            pool_type="catavgmax",
-            flatten=False,
-        )
-
-        self.attn = nn.MultiheadAttention(
-            embed_dim=self.backbones[0].num_features
-            * 2,
-            num_heads=8,
-            dropout=0.2,
-            batch_first=True,
-        )
-
-        fc_in_features = (
-            self.backbones[0].num_features
-            * 2
-            * 2
-        )
-
-        self.fc = nn.Linear(fc_in_features, 1)
-
-        # if cfg.print_config:
-        #     print(f"| backbone model: {cfg.model.multi_spec.backbone}")
-        #     print(f"| Pooling: {cfg.model.multi_spec.pool_type}")
-        #     print(f"| Number of fc input features: {self.fc.in_features}")
-        #     print(f"| Number of fc output features: {self.fc.out_features}")
+        self.weights = nn.Parameter(F.softmax(torch.randn(self.n_backbones), dim=0))
+        # SelectAdaptivePool2d: https://github.com/huggingface/pytorch-image-models/blob/main/timm/layers/adaptive_avgmax_pool.py#L124
+        self.pooling = timm.layers.SelectAdaptivePool2d(output_size=(None, 1), pool_type="catavgmax", flatten=False)
+        self.attn = nn.MultiheadAttention(embed_dim=self.backbones[0].num_features * 2, num_heads=8, dropout=0.2, batch_first=True)
+        self.fc = nn.Linear(self.backbones[0].num_features * 2 * 2, 1)
 
     def forward(self, x):
         x = [
             x[:, i, :, :, :].squeeze(1)
-            for i in range(
-                self.cfg.dataset.spec_frames.num_frames * len(self.cfg.dataset.specs)
-            )
+            for i in range(self.cfg.dataset.spec_frames.num_frames * self.n_backbones)
         ]
+        x = [self.backbones[i % self.n_backbones](t) for i, t in enumerate(x)]
         x = [
-            self.backbones[i % len(self.cfg.dataset.specs)](t) for i, t in enumerate(x)
-        ]
-        x = [
-            sum(
-                [
-                    x[i * len(self.cfg.dataset.specs) + j] * w
-                    for j, w in enumerate(self.weights)
-                ]
-            )
+            sum([x[i * self.n_backbones + j] * w for j, w in enumerate(self.weights)])
             for i in range(self.cfg.dataset.spec_frames.num_frames)
         ]
         x = torch.cat(x, dim=3)
@@ -92,79 +54,37 @@ class MultiSpecModelV2(nn.Module):
 class MultiSpecExtModel(nn.Module):
     def __init__(self, cfg):
         super().__init__()
+
         self.cfg = cfg
+        self.n_backbones = len(cfg.dataset.specs)
 
         assert cfg.model.multi_spec.backbone == "tf_efficientnetv2_s.in21k_ft_in1k"
         assert cfg.model.multi_spec.atten == True
         assert cfg.model.multi_spec.pool_type == "catavgmax"
         assert cfg.model.multi_spec.num_classes == 1
 
-        self.backbones = nn.ModuleList(
-            [
-                timm.create_model(
-                    "tf_efficientnetv2_s.in21k_ft_in1k",
-                    pretrained=True,
-                    num_classes=0,
-                )
-                for _ in range(len(cfg.dataset.specs))
-            ]
-        )
+        # EfficientNet-v2: https://huggingface.co/timm/tf_efficientnetv2_s.in21k_ft_in1k
+        self.backbones = nn.ModuleList([
+            timm.create_model("tf_efficientnetv2_s.in21k_ft_in1k", pretrained=True, num_classes=0)
+            for _ in range(self.n_backbones)
+        ])
         for backbone in self.backbones:
             backbone.global_pool = nn.Identity()
 
-        self.weights = nn.Parameter(
-            F.softmax(torch.randn(len(cfg.dataset.specs)), dim=0)
-        )
-
-        self.pooling = timm.layers.SelectAdaptivePool2d(
-            output_size=(None, 1),
-            pool_type="catavgmax",
-            flatten=False,
-        )
-
-        self.attn = nn.MultiheadAttention(
-            embed_dim=self.backbones[0].num_features
-            * 2,
-            num_heads=8,
-            dropout=0.2,
-            batch_first=True,
-        )
-
-        fc_in_features = (
-            self.backbones[0].num_features
-            * 2
-            * 2
-        )
-
-        self.num_dataset = get_dataset_num(cfg)
-
-        self.fc = nn.Linear(
-            fc_in_features + self.num_dataset, 1
-        )
-
-        # if cfg.print_config:
-        #     print(f"| backbone model: {cfg.model.multi_spec.backbone}")
-        #     print(f"| Pooling: {cfg.model.multi_spec.pool_type}")
-        #     print(f"| Number of fc input features: {self.fc.in_features}")
-        #     print(f"| Number of fc output features: {self.fc.out_features}")
+        self.weights = nn.Parameter(F.softmax(torch.randn(self.n_backbones), dim=0))
+        # SelectAdaptivePool2d: https://github.com/huggingface/pytorch-image-models/blob/main/timm/layers/adaptive_avgmax_pool.py#L124
+        self.pooling = timm.layers.SelectAdaptivePool2d(output_size=(None, 1), pool_type="catavgmax", flatten=False)
+        self.attn = nn.MultiheadAttention(embed_dim=self.backbones[0].num_features * 2, num_heads=8, dropout=0.2, batch_first=True)
+        self.fc = nn.Linear(self.backbones[0].num_features * 2 * 2 + get_dataset_num(cfg), 1)
 
     def forward(self, x, d):
         x = [
             x[:, i, :, :, :].squeeze(1)
-            for i in range(
-                self.cfg.dataset.spec_frames.num_frames * len(self.cfg.dataset.specs)
-            )
+            for i in range(self.cfg.dataset.spec_frames.num_frames * self.n_backbones)
         ]
+        x = [self.backbones[i % self.n_backbones](t) for i, t in enumerate(x)]
         x = [
-            self.backbones[i % len(self.cfg.dataset.specs)](t) for i, t in enumerate(x)
-        ]
-        x = [
-            sum(
-                [
-                    x[i * len(self.cfg.dataset.specs) + j] * w
-                    for j, w in enumerate(self.weights)
-                ]
-            )
+            sum([x[i * self.n_backbones + j] * w for j, w in enumerate(self.weights)])
             for i in range(self.cfg.dataset.spec_frames.num_frames)
         ]
         x = torch.cat(x, dim=3)
