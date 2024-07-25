@@ -39,6 +39,7 @@ class SSLExtModel(nn.Module):
         # NOTE: Same SSL configs are used for all predefined configs
         assert cfg.model.ssl.name == SSL_NAME
         assert cfg.model.ssl.attn == 1
+        assert cfg.model.ssl.num_classes == 1
 
         self.encoder = _SSLEncoder(
             cfg.sr, cfg.model.ssl.freeze
@@ -57,7 +58,7 @@ class SSLExtModel(nn.Module):
         )
         self.num_dataset = get_dataset_num(cfg)
         self.fc = nn.Linear(
-            in_features * 2 + self.num_dataset, cfg.model.ssl.num_classes
+            in_features * 2 + self.num_dataset, 1
         )
 
     def forward(self, x, d):
