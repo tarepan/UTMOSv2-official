@@ -36,26 +36,25 @@ class SSLExtModel(nn.Module):
         super().__init__()
         self.cfg = cfg
 
-        # NOTE: Same SSL model name is used for all predefined configs
+        # NOTE: Same SSL configs are used for all predefined configs
         assert cfg.model.ssl.name == SSL_NAME
+        assert cfg.model.ssl.attn == 1
 
         self.encoder = _SSLEncoder(
             cfg.sr, cfg.model.ssl.freeze
         )
         hidden_num, in_features = 13, 768
         self.weights = nn.Parameter(F.softmax(torch.randn(hidden_num), dim=0))
-        if cfg.model.ssl.attn:
-            self.attn = nn.ModuleList(
-                [
-                    nn.MultiheadAttention(
-                        embed_dim=in_features,
-                        num_heads=8,
-                        dropout=0.2,
-                        batch_first=True,
-                    )
-                    for _ in range(cfg.model.ssl.attn)
-                ]
-            )
+        self.attn = nn.ModuleList(
+            [
+                nn.MultiheadAttention(
+                    embed_dim=in_features,
+                    num_heads=8,
+                    dropout=0.2,
+                    batch_first=True,
+                )
+            ]
+        )
         self.num_dataset = get_dataset_num(cfg)
         self.fc = nn.Linear(
             in_features * 2 + self.num_dataset, cfg.model.ssl.num_classes
@@ -64,12 +63,8 @@ class SSLExtModel(nn.Module):
     def forward(self, x, d):
         x = self.encoder(x)
         x = sum([t * w for t, w in zip(x, self.weights)])
-        if self.cfg.model.ssl.attn:
-            y = x
-            for attn in self.attn:
-                y, _ = attn(y, y, y)
-            x = torch.cat([torch.mean(y, dim=1), torch.max(x, dim=1)[0]], dim=1)
-        else:
-            x = torch.cat([torch.mean(x, dim=1), torch.max(x, dim=1)[0]], dim=1)
+        y = x
+        y, _ = self.attn[0](y, y, y)  # NOTE: len(self.attn) is 1
+        x = torch.cat([torch.mean(y, dim=1), torch.max(x, dim=1)[0]], dim=1)
         x = self.fc(torch.cat([x, d], dim=1))
         return x
