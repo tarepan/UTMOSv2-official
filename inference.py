@@ -68,58 +68,19 @@ def main(cfg):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
-    parser.add_argument(
-        "-c", "--config", type=str, default="fusion_stage3", help="config file name"
-    )
-    parser.add_argument("-f", "--fold", type=int, default=0, help="fold number")
-    parser.add_argument(
-        "-s", "--seed", type=int, default=42, help="random seed for split"
-    )
-    parser.add_argument("-d", "--input_dir", type=str, help="data path")
-    parser.add_argument("-p", "--input_path", type=str, help="data path")
-    parser.add_argument("-o", "--out_path", type=str, help="output path")
-    parser.add_argument(
-        "-n",
-        "--num_workers",
-        type=int,
-        default=4,
-        help="number of workers for dataloader",
-    )
-    parser.add_argument(
-        "-t",
-        "--val_list_path",
-        type=str,
-        help="test data path",
-    )
-    parser.add_argument(
-        "-w", "--weight", type=str, default=None, help="path to the weight file to load"
-    )
-    parser.add_argument(
-        "-pd",
-        "--predict_dataset",
-        type=str,
-        default="sarulab",
-        help="predict dataset",
-    )
-    parser.add_argument(
-        "-nr",
-        "--num_repetitions",
-        type=int,
-        default=1,
-        help="number of repetitions for prediction",
-    )
-    parser.add_argument(
-        "-e",
-        "--reproduce",
-        action="store_true",
-        help="Run the experiment as described in the paper, including all necessary steps for reproducibility.",
-    )
-    parser.add_argument(
-        "-fi",
-        "--final",
-        action="store_true",
-        help="final submission",
-    )
+    parser.add_argument("-c",  "--config",          type=str, default="fusion_stage3", help="config file name")
+    parser.add_argument("-f",  "--fold",            type=int, default=0,               help="fold number")
+    parser.add_argument("-s",  "--seed",            type=int, default=42,              help="random seed for split")
+    parser.add_argument("-d",  "--input_dir",       type=str,                          help="data path")
+    parser.add_argument("-p",  "--input_path",      type=str,                          help="data path")
+    parser.add_argument("-o",  "--out_path",        type=str,                          help="output path")
+    parser.add_argument("-n",  "--num_workers",     type=int, default=4,               help="number of workers for dataloader")
+    parser.add_argument("-t",  "--val_list_path",   type=str,                          help="test data path")
+    parser.add_argument("-w",  "--weight",          type=str, default=None,            help="path to the weight file to load")
+    parser.add_argument("-pd", "--predict_dataset", type=str, default="sarulab",       help="predict dataset")
+    parser.add_argument("-nr", "--num_repetitions", type=int, default=1,               help="number of repetitions for prediction")
+    parser.add_argument("-e",  "--reproduce",       action="store_true",               help="Run the experiment as described in the paper, including all necessary steps for reproducibility.")
+    parser.add_argument("-fi", "--final",           action="store_true",               help="final submission")
     args = parser.parse_args()
 
     if args.input_dir is None and args.input_path is None:
