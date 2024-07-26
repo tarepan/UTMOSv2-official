@@ -2,6 +2,7 @@
 
 import timm
 import torch
+from torch import Tensor
 import torch.nn as nn
 import torch.nn.functional as F
 
@@ -35,21 +36,32 @@ class MultiSpecModelV2(nn.Module):
         self.fc = nn.Linear(self.backbones[0].num_features * 2 * 2, 1)
 
     def forward(self, x):
+        """
+        Args:
+            x      :: (B, Level*Clip, RGB, Freq, Frame) - Spectrograms
+        Returns:
+                   :: (B, 1)                            - Scores
+        """
         x = [
             x[:, i, :, :, :].squeeze(1)
             for i in range(self.cfg.dataset.spec_frames.num_frames * self.n_backbones)
         ]
-        x = [self.backbones[i % self.n_backbones](t) for i, t in enumerate(x)]
+        x = [self.backbones[i % self.n_backbones](specs) for i, specs in enumerate(x)]
         x = [
             sum([x[i * self.n_backbones + j] * w for j, w in enumerate(self.weights)])
             for i in range(self.cfg.dataset.spec_frames.num_frames)
         ]
         x = torch.cat(x, dim=3)
         x = self.pooling(x).squeeze(3)
+
+        # unitSeries-to-feat :: (B, Feat, Frame) -> (B, Frame, Feat) -> (B, Frame, Feat) then (B, Frame, Feat) & (B, Feat, Frame) -> (B, Feat)
         xt = torch.permute(x, (0, 2, 1))
         y, _ = self.attn(xt, xt, xt)
         x = torch.cat([torch.mean(y, dim=1), torch.max(x, dim=2).values], dim=1)
+
+        # feat-to-score :: (B, Feat) -> (B, 1)
         x = self.fc(x)
+
         return x
 
 
@@ -79,26 +91,37 @@ class MultiSpecExtModel(nn.Module):
         self.attn = nn.MultiheadAttention(embed_dim=self.backbones[0].num_features * 2, num_heads=8, dropout=0.2, batch_first=True)
         self.fc = nn.Linear(self.backbones[0].num_features * 2 * 2 + get_dataset_num(cfg), 1)
 
-    def forward(self, x, ds_idc):
+    def forward(self, x, ds_idc: Tensor) -> Tensor:
         """
         Args:
-            x                - spec
-            ds_idc :: (B, D) - Dataset ID onehot vectors
+            x      :: (B, Level*Clip, RGB, Freq, Frame) - Spectrograms
+            ds_idc :: (B, D)                            - Dataset ID onehot vectors
+        Returns:
+                   :: (B, 1)                            - Scores
         """
 
+        # :: (B, Level*Clip, RGB, Freq, Frame) -> [(B, RGB, Freq, Frame) x Level*Clip]
         x = [
             x[:, i, :, :, :].squeeze(1)
             for i in range(self.cfg.dataset.spec_frames.num_frames * self.n_backbones)
         ]
-        x = [self.backbones[i % self.n_backbones](t) for i, t in enumerate(x)]
+        # spec-to-feat :: [(B, RGB, Freq, Frame) x Level*Clip] -> [(B, ...) x Level*Clip]
+        x = [self.backbones[i % self.n_backbones](specs) for i, specs in enumerate(x)]
+        # :: [(B, ...) x Level*Clip] -> [(B, ...) x Clip]
         x = [
             sum([x[i * self.n_backbones + j] * w for j, w in enumerate(self.weights)])
             for i in range(self.cfg.dataset.spec_frames.num_frames)
         ]
+        # :: [(B, ...) x Clip] -> (B, ..., Clip) -> (B, ...)
         x = torch.cat(x, dim=3)
         x = self.pooling(x).squeeze(3)
+
+        # unitSeries-to-feat :: (B, Feat, Frame) -> (B, Frame, Feat) -> (B, Frame, Feat) then (B, Frame, Feat) & (B, Feat, Frame) -> (B, Feat)
         xt = torch.permute(x, (0, 2, 1))
         y, _ = self.attn(xt, xt, xt)
         x = torch.cat([torch.mean(y, dim=1), torch.max(x, dim=2).values], dim=1)
+
+        # feat-to-score with dataset index :: (B, Feat) & (B, D) -> (B, 1)
         x = self.fc(torch.cat([x, ds_idc], dim=1))
+
         return x
