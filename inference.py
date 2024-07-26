@@ -1,3 +1,5 @@
+"""Entry point of MOS prediction inference"""
+
 import argparse
 import importlib
 
@@ -21,6 +23,9 @@ from utmosv2.utils import (
 
 
 def main(cfg):
+    """Run inference workflow."""
+
+    # Load and show raw data
     data = get_inference_data(cfg)
     show_inference_data(data)
 
@@ -36,17 +41,15 @@ def main(cfg):
 
         cfg.now_fold = fold
 
+        # Acquire MOS predictor
         model = get_model(cfg, device)
 
         cfg.print_config = False
         print(f"+*+*[[Fold {fold + 1}/{cfg.num_folds}]]" + "+*" * 30)
 
         for cycle in range(cfg.inference.num_tta):
-            test_dataset = get_dataset(cfg, data, "test")
-            test_dataloader = get_dataloader(cfg, test_dataset, "test")
-            test_preds_tta, test_metrics_tta = run_inference(
-                cfg, model, test_dataloader, cycle, data, device
-            )
+            test_dataloader = get_dataloader(cfg, get_dataset(cfg, data, "test"), "test")
+            test_preds_tta, test_metrics_tta = run_inference(cfg, model, test_dataloader, cycle, data, device)
             test_preds += test_preds_tta
             if cfg.reproduce:
                 for k, v in test_metrics_tta.items():
@@ -83,17 +86,16 @@ if __name__ == "__main__":
     parser.add_argument("-fi", "--final",           action="store_true",               help="final submission")
     args = parser.parse_args()
 
+    # Argument validation
     if args.input_dir is None and args.input_path is None:
-        raise ValueError(
-            "Either input_dir or input_path must be provided when you use your own data."
-        )
+        raise ValueError("Either input_dir or input_path must be provided when you use your own data.")
     if args.input_dir is not None and args.input_path is not None:
-        raise ValueError(
-            "Only one of input_dir or input_path must be provided when you use your own data."
-        )
+        raise ValueError("Only one of input_dir or input_path must be provided when you use your own data.")
 
+    # Construct configuration from pre-defined config, args and defaults
     cfg = importlib.import_module("utmosv2.config." + args.config)
     configure_inference_args(cfg, args)
     configure_defaults(cfg)
 
+    # Run inference
     main(cfg)

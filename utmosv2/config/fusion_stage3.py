@@ -1,3 +1,5 @@
+"""Default configuration of UTMOSv2"""
+
 from pathlib import Path
 from types import SimpleNamespace
 

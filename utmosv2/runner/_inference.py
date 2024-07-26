@@ -1,3 +1,5 @@
+"""MOS prediction runner"""
+
 from __future__ import annotations
 
 import numpy as np
@@ -17,22 +19,37 @@ def run_inference(
     test_data: pd.DataFrame,
     device: torch.device,
 ) -> tuple[np.ndarray, dict[str, float] | None]:
+    """
+    Args:
+        cfg
+        model           - MOS predictor
+        test_dataloader - DataLoader for test
+        cycle           -
+        test_data       - Raw data
+        device          - Device name
+    Returns:
+        test_preds
+        test_metrics
+    """
     model.eval()
-    test_preds = []
-    pbar = tqdm(
-        test_dataloader,
-        total=len(test_dataloader),
-        desc=f"  [Inference] ({cycle + 1}/{cfg.inference.num_tta})",
-    )
 
+    # :: [(B,)]
+    test_preds = []
+    pbar = tqdm(test_dataloader, total=len(test_dataloader), desc=f"  [Inference] ({cycle + 1}/{cfg.inference.num_tta})")
     with torch.no_grad():
-        for t in pbar:
-            x = t[:-1]
-            x = [t.to(device, non_blocking=True) for t in x]
+        for data in pbar:
+            # Remove `target` and transfer others on device
+            data = data[:-1]
+            data = [datum.to(device, non_blocking=True) for datum in data]
+
+            # Convert inputs into output score :: -> (B, 1) -> (B,)
             with autocast():
-                output = model(*x).squeeze()
+                output = model(*data).squeeze()
+
             test_preds.append(output.squeeze().cpu().numpy())
     test_preds = np.concatenate(test_preds) if cfg.input_dir else np.array(test_preds)
+
+    # Calculate metrics
     if cfg.reproduce:
         test_metrics = calc_metrics(test_data, test_preds)
         print_metrics(test_metrics)

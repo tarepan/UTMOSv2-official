@@ -39,8 +39,10 @@ def get_data(cfg) -> pd.DataFrame:
 
 
 def get_dataset(cfg, data: pd.DataFrame, phase: str) -> torch.utils.data.Dataset:
+    """Acquire dataset."""
     if cfg.print_config:
         print(f"Using dataset: {cfg.dataset.name}")
+
     if cfg.dataset.name == "multi_spec":
         res = MultiSpecDataset(cfg, data, phase, cfg.transform)
     elif cfg.dataset.name == "ssl":
@@ -53,12 +55,17 @@ def get_dataset(cfg, data: pd.DataFrame, phase: str) -> torch.utils.data.Dataset
         res = MultiSpecExtDataset(cfg, data, phase, cfg.transform)
     else:
         raise NotImplementedError
+
     return res
 
 
 def get_model(cfg, device: torch.device) -> nn.Module:
+    """Acquire MOS predictor."""
+
     if cfg.print_config:
         print(f"Using model: {cfg.model.name}")
+
+    # Instantiate predictor model. Submodule/Submodule/Submodule/v1/v2
     if cfg.model.name == "multi_specv2":
         model = MultiSpecModelV2(cfg)
     elif cfg.model.name == "sslext":
@@ -71,7 +78,11 @@ def get_model(cfg, device: torch.device) -> nn.Module:
         model = SSLMultiSpecExtModelV2(cfg)
     else:
         raise NotImplementedError
+
+    # Transfer the predictor instance to the device
     model = model.to(device)
+
+    # Load pretrained weights
     if cfg.weight is not None:
         if cfg.weight.endswith(".pth"):
             weight_path = cfg.weight
@@ -83,10 +94,12 @@ def get_model(cfg, device: torch.device) -> nn.Module:
             ).as_posix()
         model.load_state_dict(torch.load(weight_path))
         print(f"Loaded weight from {weight_path}")
+
     return model
 
 
 def get_metrics() -> dict[str, Callable[[np.ndarray, np.ndarray], float]]:
+    """Acquire metric functions."""
     return {
         "mse": lambda x, y: np.mean((x - y) ** 2),
         "lcc": lambda x, y: np.corrcoef(x, y)[0][1],
@@ -113,6 +126,7 @@ def calc_metrics(data: pd.DataFrame, preds: np.ndarray) -> dict[str, float]:
 
 
 def configure_defaults(cfg):
+    """Apply default values on config."""
     if cfg.id_name is None:
         cfg.id_name = "utt_id"
 

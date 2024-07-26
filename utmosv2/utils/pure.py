@@ -176,6 +176,7 @@ def save_oof_preds(cfg, data: pd.DataFrame, oof_preds: np.ndarray, fold: int):
 
 
 def configure_args(cfg, args):
+    """Apply args into cfg for training."""
     cfg.fold = args.fold
     cfg.split.seed = args.seed
     cfg.config_name = args.config
@@ -190,6 +191,7 @@ def configure_args(cfg, args):
 
 
 def configure_inference_args(cfg, args):
+    """Apply args into cfg for inference."""
     cfg.inference.fold = args.fold
     cfg.split.seed = args.seed
     cfg.config_name = args.config
