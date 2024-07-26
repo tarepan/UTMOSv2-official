@@ -18,6 +18,10 @@ class MultiSpecDataset(torch.utils.data.Dataset):
         self.phase = phase
         self.transform = transform
 
+        for spec_cfg in self.cfg.dataset.specs:
+            # NOTE: Same configs are used for all predefined configs
+            assert spec_cfg.mode == "melspec"
+
     def __len__(self):
         return len(self.data)
 
@@ -37,10 +41,10 @@ class MultiSpecDataset(torch.utils.data.Dataset):
         for _ in range(self.cfg.dataset.spec_frames.num_frames):
             wave1 = select_random_start(wave, length)
             for spec_cfg in self.cfg.dataset.specs:
-                spec = _make_spctrogram(self.cfg, spec_cfg, wave1)
+                spec = _make_melspec(self.cfg, spec_cfg, wave1)
                 if self.cfg.dataset.spec_frames.mixup_inner:
                     wave2 = select_random_start(wave, length)
-                    spec2 = _make_spctrogram(self.cfg, spec_cfg, wave2)
+                    spec2 = _make_melspec(self.cfg, spec_cfg, wave2)
                     lmd = np.random.beta(
                         self.cfg.dataset.spec_frames.mixup_alpha,
                         self.cfg.dataset.spec_frames.mixup_alpha,
@@ -83,15 +87,6 @@ class MultiSpecExtDataset(MultiSpecDataset):
         return spec, ds_idx, target
 
 
-def _make_spctrogram(cfg, spec_cfg, wave: np.ndarray) -> np.ndarray:
-    if spec_cfg.mode == "melspec":
-        return _make_melspec(cfg, spec_cfg, wave)
-    elif spec_cfg.mode == "stft":
-        return _make_stft(cfg, spec_cfg, wave)
-    else:
-        raise NotImplementedError
-
-
 def _make_melspec(cfg, spec_cfg, y: np.ndarray) -> np.ndarray:
     spec = librosa.feature.melspectrogram(
         y=y,
@@ -103,11 +98,4 @@ def _make_melspec(cfg, spec_cfg, y: np.ndarray) -> np.ndarray:
     spec = librosa.power_to_db(spec, ref=np.max)
     if spec_cfg.norm is not None:
         spec = (spec + spec_cfg.norm) / spec_cfg.norm
-    return spec
-
-
-def _make_stft(cfg, spec_cfg, y: np.ndarray) -> np.ndarray:
-    spec = librosa.stft(y=y, n_fft=spec_cfg.n_fft, hop_length=spec_cfg.hop_length)
-    spec = np.abs(spec)
-    spec = librosa.amplitude_to_db(spec)
     return spec
