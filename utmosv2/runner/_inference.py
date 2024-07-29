@@ -44,10 +44,10 @@ def run_inference(
 
             # Convert inputs into output score :: -> (B, 1) -> (B,)
             with autocast():
-                output = model(*data).squeeze()
+                output = model(*data).squeeze(1)
 
-            test_preds.append(output.squeeze().cpu().numpy())
-    test_preds = np.concatenate(test_preds) if cfg.input_dir else np.array(test_preds)
+            test_preds.append(output.cpu().numpy())
+    test_preds = np.concatenate(test_preds)
 
     # Calculate metrics
     if cfg.reproduce:
